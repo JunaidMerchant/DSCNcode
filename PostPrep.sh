@@ -28,15 +28,14 @@
 ##### PARAMETERS - CHANGE THESE TO MEET THE NEEDS OF YOUR STUDY ################
 #
 # First define fMRIprep superlevel directory ###################################
-PrepDir="/export/data/neuron/JAM/fMRIprep/fmriprep"
+PrepDir="/Users/Junaid/Desktop/BIDS-fMRIprep"
 #
 # Second define the bold files that you want to perform these operations on ####
-FuncName=("jam_run-01" "jam_run-02" "jam_run-03" "jam_run-04" "jam_run-05" \
-"jam_run-06" "tom_run-01" "tom_run-02")
+FuncName=("cmnt_run-01" "cmnt_run-02" "cmnt_run-03" "cmnt_run-04")
 #
 # Third define path to accompanying regressor extracting R script. This was too
 # hard to do in bash, so I created R script to handle this part. Sloppy I know!
-ExtractR="/export/data/neuron/JAM/ExtractRegressors.R"
+ExtractR="/Users/Junaid/Desktop/DSCNcode/ExtractRegressors.R"
 #
 # Fourth define template space of the data you want to perform these operations
 # on, but make sure that it matches exactly how fmriprep labels it. Any typos
@@ -47,7 +46,7 @@ Template=("MNI152NLin2009cAsym")
 # define the subjects below. If you leave the below blank, then you can feed
 # a subject ID in as an input. If you don't do that, then this will run on all
 # the subjects in the PrepDir defined above!
-SubID=("sub-JAM012" "sub-JAM014" "sub-JAM016")
+SubID=("sub-REDCMNT137")
 #
 ##### END OF PARAMETERS SECTION - DON'T MESS WITH THE STUFF BELOW #############
 ################################################################################
@@ -159,31 +158,7 @@ for sub in ${SubID[@]}; do
 done
 #
 #
-# 3) Now convert the confound regressors file to afni compatible
-
-
-
-
-
-
-
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-01_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_1
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-02_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_2
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-03_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_3
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-04_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_4
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-05_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_5
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-06_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_6
-#
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-01_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_1
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-02_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_2
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-03_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_3
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-04_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_4
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-05_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_5
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-06_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_6
-#
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-01_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_1
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-02_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_2
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-03_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_3
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-04_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_4
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-05_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_5
-# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-06_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_6
+# 3) Now loop through functionals & convert the confound regressors file to afni compatible
+for fun in ${FuncName[@]}; do
+	Rscript $ExtractR ${PrepDir}/${sub}/func/${sub}_task-${fun}_desc-confounds_regressors.tsv ${PrepDir}/${sub}/afni 1
+done
