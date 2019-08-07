@@ -14,8 +14,7 @@
 # 4) Multiplies the preprocessed, scaled data by the brain mask to remove out of
 #    brain data.
 #
-# Note: We are specifically using data normalized to MNI_2009 template, and
-# that our censor criteria is 1 mm FD
+# Note: Our censor criteria is 1 mm FD
 #
 # To use this script, you must modify the PARAMETERS section to match your study
 # and can run as is. There are one of three ways to define which subjects you
@@ -25,6 +24,7 @@
 #   in which case it will perform these operations to all the subjects in the
 #   fMRIprep folder! #Flexibility
 #
+################################################################################
 ##### PARAMETERS - CHANGE THESE TO MEET THE NEEDS OF YOUR STUDY ################
 #
 # First define fMRIprep superlevel directory ###################################
@@ -38,14 +38,19 @@ FuncName=("jam_run-01" "jam_run-02" "jam_run-03" "jam_run-04" "jam_run-05" \
 # hard to do in bash, so I created R script to handle this part. Sloppy I know!
 ExtractR="/export/data/neuron/JAM/ExtractRegressors.R"
 #
-# Finally define the subject IDs for which you want to run this script on. See 
-# above about the three ways you can define subjects. Easisest would be to 
-# define the subjects below. If you leave the below blank, then you can feed 
+# Fourth define template space of the data you want to perform these operations
+# on, but make sure that it matches exactly how fmriprep labels it. Any typos
+# will crash this. You can include more than one template space if you have it!
+Template=("MNI152NLin2009cAsym")
+# Finally define the subject IDs for which you want to run this script on. See
+# above about the three ways you can define subjects. Easisest would be to
+# define the subjects below. If you leave the below blank, then you can feed
 # a subject ID in as an input. If you don't do that, then this will run on all
 # the subjects in the PrepDir defined above!
 SubID=("sub-JAM012" "sub-JAM014" "sub-JAM016")
 #
 ##### END OF PARAMETERS SECTION - DON'T MESS WITH THE STUFF BELOW #############
+################################################################################
 #
 #
 #
@@ -55,49 +60,130 @@ to get it ready to model in AFNI, but needs the following:"
 #
 # Check to see if PrepDir has been assigned
 if [ -z $PrepDir ] || [ -z $FuncName ] || [ -z $ExtractR ] ; then
+	echo ""
 	echo $ErrorMessage
+	echo ""
 	#
 	if [ -z $PrepDir ] ; then
 		echo "Need to define path to fmriprep directory"
+		echo ""
+		exit;
 	fi
 	#
 	if [ -z $FuncName ] ; then
 		echo "Need to define bold files"
+		echo ""
+		exit;
 	fi
 	#
 	if [ -z $ExtractR ] ; then
 		echo "Need to define bold files"
+		echo ""
+		exit;
 	fi
 	#
 fi
 #
 #
-# Now, need to check what subjects to run!
-if [ $# -eq 1 ]; then 
-	SubID=$1
-	echo Running PostPrep on $SubID
+#
+if [ ! -z $SubID ]; then
+	echo ""
+	echo Running PostPrep on ${SubID[@]}
+	echo ""
 else
+	# If not, then check to see if a SubID was fed into the script as an option
+	if [ $# -eq 1 ]; then
+		SubID=$1
+		echo ""
+		echo Running PostPrep on ${SubID[@]}
+		echo ""
+	fi
+	# If no SubID was defined in the script, and there wasn't one fed as an option
+	# search the PrepDir for subjects
 	if [ -z $SubID ] && [ $# -ne 1 ]; then
-	SubID=$(find ${PrepDir} -type d -name sub*)
-	if 
+		SubID=$(find ${PrepDir} -type d -name sub*)
+		if [ -z $SubID ]; then
+			echo ""
+			echo $ErrorMessage
+			echo ""
+			echo "you've not defined SubID in the script, as an input, nor are there any subjects in the PrepDir"
+			echo ""
+			exit;
+		else
+			echo ""
+			echo Running PostPrep on ${SubID[@]}
+			echo ""
+		fi
+	fi
+fi
+#
+#
+# 1-2) Convert appropriate files to Brik/Head and scale the data all in one loop
+# Now that the checks are out of the way, let's look start copy/converting to
+# appropriately names brik/head files.
+# Loop through the subjects
+for sub in ${SubID[@]}; do
+	#
+	# Make the afni dir if there isn't one yet
+	if [ ! -d ${PrepDir}/${sub}/afni ]; then
+		mkdir ${PrepDir}/${sub}/afni
+	fi
+	#
+	for temp in ${Template[@]}; do
+	#
+	# Copy over the relevant normalized structural if it hasn't been yet
+	if [ ! -f ${PrepDir}/${sub}/afni/${sub}_space-${temp}_desc-preproc_T1w+tlrc.BRIK ]; then
+		3dcopy ${PrepDir}/${sub}/anat/${sub}_space-${temp}_desc-preproc_T1w.nii.gz ${PrepDir}/${sub}/afni/${sub}_space-${temp}_desc-preproc_T1w+tlrc
+	fi
+		# Loop through the different functional files
+		for fun in ${FuncName[@]}; do
+			#
+			# Starting first with the preprocessed function: 1) convert to brik/head, 2) calculate the voxel-level mean, 3) scale to the mean
+			3dcopy ${PrepDir}/${sub}/func/${sub}_task-${fun}_space-${temp}_desc-preproc_bold.nii.gz ${PrepDir}/${sub}/afni/${sub}_${temp}_preproc_${fun}
+			3dTstat -prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_mean-preproc_${fun}+tlrc ${PrepDir}/${sub}/afni/${sub}_${temp}_preproc_${fun}+tlrc
+			3dcalc -a ${PrepDir}/${sub}/afni/${sub}_${temp}_preproc_${fun}+tlrc -b ${PrepDir}/${sub}/afni/${sub}_${temp}_mean-preproc_${fun}+tlrc \
+				-expr 'min(200, a/b*100)*step(a)*step(b)' \
+				-prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_scaled-preproc_${fun}+tlrc
+			#
+			# Now copy over the brain mask into brik/head format
+			3dcopy ${PrepDir}/${sub}/func/${sub}_task-${fun}_space-${temp}_desc-brain_mask.nii.gz ${PrepDir}/${sub}/afni/${sub}_${temp}_brainmask_${fun}
+			#
+			# Finally copy over the AROMAe'd data and scale like before
+			3dcopy ${PrepDir}/${sub}/func/${sub}_task-${fun}_space-${temp}_desc-smoothAROMAnonaggr_bold.nii.gz ${PrepDir}/${sub}/afni/${sub}_${temp}_aroma_${fun}
+			3dTstat -prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_mean-aroma_${fun}+tlrc ${PrepDir}/${sub}/afni/${sub}_${temp}_aroma_${fun}+tlrc
+			3dcalc -a ${PrepDir}/${sub}/afni/${sub}_${temp}_aroma_${fun}+tlrc -b ${PrepDir}/${sub}/afni/${sub}_${temp}_mean-aroma_${fun}+tlrc \
+				-expr 'min(200, a/b*100)*step(a)*step(b)' \
+				-prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_scaled-aroma_${fun}+tlrc
+		done
+	done
+done
+#
+#
+# 3) Now convert the confound regressors file to afni compatible
 
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-01_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_1
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-02_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_2
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-03_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_3
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-04_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_4
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-05_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_5
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-06_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_6
 
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-01_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_1
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-02_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_2
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-03_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_3
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-04_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_4
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-05_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_5
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-06_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_6
 
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-01_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_1
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-02_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_2
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-03_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_3
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-04_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_4
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-05_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_5
-3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-06_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_6
+
+
+
+
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-01_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_1
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-02_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_2
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-03_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_3
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-04_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_4
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-05_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_5
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-06_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz AFNI/${s}/fmriprep/${s}_mni_preproc_run_6
+#
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-01_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_1
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-02_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_2
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-03_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_3
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-04_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_4
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-05_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_5
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-06_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz AFNI/${s}/fmriprep/${s}_brainmask_run_6
+#
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-01_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_1
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-02_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_2
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-03_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_3
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-04_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_4
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-05_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_5
+# 3dcopy fMRIprep/fmriprep/sub-${s}/func/sub-${s}_task-jam_run-06_space-MNI152NLin2009cAsym_desc-smoothAROMAnonaggr_bold.nii.gz AFNI/${s}/fmriprep/${s}_aroma_run_6
