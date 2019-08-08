@@ -64,6 +64,8 @@ Censor=as.data.frame.array(FD)
 if(Censor[1,1]=="n/a"){
   Censor[1,1]<-0
 }
+write.table(Censor,paste(OutDir,"/",FilePrefix,"FD.1D", sep=""), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+
 # loop through to create censor regressor
 for(x in 1:nrow(Censor)){
   if(Censor[x,1]>CenThresh){
