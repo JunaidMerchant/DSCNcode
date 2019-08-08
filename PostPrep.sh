@@ -9,10 +9,10 @@
 #    brik/head format.
 # 2) scales the preprocessed BOLD images so that they activations can be
 #    interpreted as percent signal change.
-# 3) extracts the 3 rotation, 3 translation, 1mm censor data, and framewise-
-#    displacement values for each volume to be used as nuissance regressors.
-# 4) Multiplies the preprocessed, scaled data by the brain mask to remove out of
+# 3) Multiplies the preprocessed, scaled data by the brain mask to remove out of
 #    brain data.
+# 4) extracts the 3 rotation, 3 translation, 1mm censor data, and framewise-
+#    displacement values for each volume to be used as nuissance regressors.
 #
 # Note: Our censor criteria is 1 mm FD
 #
@@ -117,9 +117,11 @@ else
 fi
 #
 #
-# 1-2) Convert appropriate files to Brik/Head and scale the data all in one loop
 # Now that the checks are out of the way, let's look start copy/converting to
 # appropriately names brik/head files.
+#
+# 1-3) Convert appropriate files to Brik/Head, scale the data, and create a
+# brain masked version of the scaled data all in one loop
 # Loop through the subjects
 for sub in ${SubID[@]}; do
 	#
@@ -137,15 +139,21 @@ for sub in ${SubID[@]}; do
 		# Loop through the different functional files
 		for fun in ${FuncName[@]}; do
 			#
-			# Starting first with the preprocessed function: 1) convert to brik/head, 2) calculate the voxel-level mean, 3) scale to the mean
+			# Starting first with the preprocessed function: 1) convert to brik/head,
 			3dcopy ${PrepDir}/${sub}/func/${sub}_task-${fun}_space-${temp}_desc-preproc_bold.nii.gz ${PrepDir}/${sub}/afni/${sub}_${temp}_preproc_${fun}
+			# 2) calculate the voxel-level mean, 3) scale to the mean
 			3dTstat -prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_mean-preproc_${fun}+tlrc ${PrepDir}/${sub}/afni/${sub}_${temp}_preproc_${fun}+tlrc
+			# 3) scale to the mean
 			3dcalc -a ${PrepDir}/${sub}/afni/${sub}_${temp}_preproc_${fun}+tlrc -b ${PrepDir}/${sub}/afni/${sub}_${temp}_mean-preproc_${fun}+tlrc \
 				-expr 'min(200, a/b*100)*step(a)*step(b)' \
 				-prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_scaled-preproc_${fun}+tlrc
+			# Clean up mean image
+			rm -f ${PrepDir}/${sub}/afni/${sub}_${temp}_mean-preproc_${fun}+tlrc*
+			#
 			#
 			# Now copy over the brain mask into brik/head format
 			3dcopy ${PrepDir}/${sub}/func/${sub}_task-${fun}_space-${temp}_desc-brain_mask.nii.gz ${PrepDir}/${sub}/afni/${sub}_${temp}_brainmask_${fun}
+			#
 			#
 			# Finally copy over the AROMAe'd data and scale like before
 			3dcopy ${PrepDir}/${sub}/func/${sub}_task-${fun}_space-${temp}_desc-smoothAROMAnonaggr_bold.nii.gz ${PrepDir}/${sub}/afni/${sub}_${temp}_aroma_${fun}
@@ -153,6 +161,18 @@ for sub in ${SubID[@]}; do
 			3dcalc -a ${PrepDir}/${sub}/afni/${sub}_${temp}_aroma_${fun}+tlrc -b ${PrepDir}/${sub}/afni/${sub}_${temp}_mean-aroma_${fun}+tlrc \
 				-expr 'min(200, a/b*100)*step(a)*step(b)' \
 				-prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_scaled-aroma_${fun}+tlrc
+			rm -f ${PrepDir}/${sub}/afni/${sub}_${temp}_mean-aroma_${fun}+tlrc*
+			#
+			#
+			#
+			# Now mask the scaled images. First have to rescale mask
+			# First, the aroma, which has different dimensions, so needs to be rescaled
+			3dresample -master ${PrepDir}/${sub}/afni/${sub}_${temp}_scaled-aroma_${fun}+tlrc -prefix ${PrepDir}/${sub}/afni/TempMask -input ${PrepDir}/${sub}/afni/${sub}_${temp}_brainmask_${fun}+tlrc
+			3dcalc -a ${PrepDir}/${sub}/afni/TempMask+tlrc -b ${PrepDir}/${sub}/afni/${sub}_${temp}_scaled-aroma_${fun}+tlrc -expr 'a*b' -prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_masked-scaled-aroma_${fun}
+			rm -f ${PrepDir}/${sub}/afni/TempMask+tlrc*
+			#
+			# Then the preproc, which doesn't need scaling
+			3dcalc -a ${PrepDir}/${sub}/afni/${sub}_${temp}_scaled-preproc_${fun}+tlrc -b ${PrepDir}/${sub}/afni/${sub}_${temp}_brainmask_${fun}+tlrc -expr 'a*b' -prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_masked-scaled-preproc_${fun}
 		done
 	done
 done
