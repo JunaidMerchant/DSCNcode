@@ -66,6 +66,11 @@ if(Censor[1,1]=="n/a"){
 }
 write.table(Censor,paste(OutDir,"/",FilePrefix,"FD.1D", sep=""), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 
+# Get relevant FD data for motion summaries: 
+MeanFD=mean(as.numeric(Censor[2:length(Censor[,1]),1]))
+MaxFD=max(as.numeric(Censor[2:length(Censor[,1]),1]))
+SdFD=sd(as.numeric(Censor[2:length(Censor[,1]),1]))
+
 # loop through to create censor regressor
 for(x in 1:nrow(Censor)){
   if(Censor[x,1]>CenThresh){
@@ -73,5 +78,10 @@ for(x in 1:nrow(Censor)){
   } else {
     Censor[x,1]=1}
 }
+
+CensorPercent= ((length(Censor[2:length(Censor[,1]),1]) - sum(as.numeric(Censor[2:length(Censor[,1]),1])))/length(Censor[2:length(Censor[,1]),1]))*100
 # write censor to 1D file
 write.table(Censor,paste(OutDir,"/",FilePrefix,"Censor.1D", sep=""), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+
+MotionSummary=data.frame(MeanFD,MaxFD,SdFD,CensorPercent)
+write.table(MotionSummary,paste(OutDir,"/",FilePrefix,"MotionSummary.csv", sep=""), quote = FALSE, sep = ",", row.names = FALSE, col.names = TRUE)
