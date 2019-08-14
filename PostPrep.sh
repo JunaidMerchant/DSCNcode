@@ -1,4 +1,3 @@
-
 #!/bin/bash
 #
 ################################################################################
@@ -87,20 +86,20 @@ fi
 #
 if [ ! -z $SubID ]; then
 	echo ""
-	echo Running PostPrep on ${SubID[@]}
+	echo "Subject defined:"
 	echo ""
 else
 	# If not, then check to see if a SubID was fed into the script as an option
 	if [ $# -eq 1 ]; then
 		SubID=$1
 		echo ""
-		echo Running PostPrep on ${SubID[@]}
+		echo "Subject defined:"
 		echo ""
 	fi
 	# If no SubID was defined in the script, and there wasn't one fed as an option
 	# search the PrepDir for subjects
 	if [ -z $SubID ] && [ $# -ne 1 ]; then
-		SubID=$(find ${PrepDir} -type d -name sub*)
+		SubID=($(ls -d ${PrepDir}/sub*/))
 		if [ -z $SubID ]; then
 			echo ""
 			echo $ErrorMessage
@@ -110,7 +109,7 @@ else
 			exit;
 		else
 			echo ""
-			echo Running PostPrep on ${SubID[@]}
+			echo "Subject defined:"
 			echo ""
 		fi
 	fi
@@ -125,6 +124,11 @@ fi
 # Loop through the subjects
 for sub in ${SubID[@]}; do
 	#
+	echo "------------------------------------------------------------------"
+	echo Running PostPrep on ${sub}
+	echo ""
+	date
+	echo "------------------------------------------------------------------"
 	# Make the afni dir if there isn't one yet
 	if [ ! -d ${PrepDir}/${sub}/afni ]; then
 		mkdir ${PrepDir}/${sub}/afni
@@ -173,12 +177,14 @@ for sub in ${SubID[@]}; do
 			#
 			# Then the preproc, which doesn't need scaling
 			3dcalc -a ${PrepDir}/${sub}/afni/${sub}_${temp}_scaled-preproc_${fun}+tlrc -b ${PrepDir}/${sub}/afni/${sub}_${temp}_brainmask_${fun}+tlrc -expr 'a*b' -prefix ${PrepDir}/${sub}/afni/${sub}_${temp}_masked-scaled-preproc_${fun}
+			#
+			# Now convert the confound regressors file to afni compatible
+			if [ -f ${PrepDir}/${sub}/afni/${sub}-${fun}-MotionSummary.csv ]; then
+				echo "Looks like motion extraction has already occurred"
+			else
+				Rscript $ExtractR ${PrepDir}/${sub}/func/${sub}_task-${fun}_desc-confounds_regressors.tsv ${PrepDir}/${sub}/afni 1
+			fi
 		done
 	done
 done
 #
-#
-# 3) Now loop through functionals & convert the confound regressors file to afni compatible
-for fun in ${FuncName[@]}; do
-	Rscript $ExtractR ${PrepDir}/${sub}/func/${sub}_task-${fun}_desc-confounds_regressors.tsv ${PrepDir}/${sub}/afni 1
-done
