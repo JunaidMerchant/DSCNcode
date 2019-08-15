@@ -53,6 +53,9 @@ write.table(MoParDeMean,paste(OutDir,"/",FilePrefix,"MoParDeMean.1D", sep=""), q
 
 # extract derivative motion regressors
 MoParDerv = Data[c("rot_x_derivative1","rot_y_derivative1","rot_z_derivative1","trans_x_derivative1","trans_y_derivative1","trans_z_derivative1")]
+MoParDerv=as.data.frame.array(MoParDerv)
+for(x in 1:6){MoParDerv[1,x]<-0}
+
 # write derivative file
 write.table(MoParDerv,paste(OutDir,"/",FilePrefix,"MoParDerv.1D", sep=""), quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 
